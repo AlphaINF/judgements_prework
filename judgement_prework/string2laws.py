@@ -30,6 +30,42 @@ class string2laws:
         # 应用字符映射表
         return text.translate(punc_map_table)
 
+    def num_to_chinese_str(self, num):
+        """
+        将数字转换为汉字字符串
+        :param num: int, 要转换的数字，范围在 0-9999 之间
+        :return: str, 汉字字符串
+        """
+        if num < 0 or num > 9999:
+            raise ValueError("数字超出范围，应为 0-9999 之间")
+
+        chinese_chars = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+        chinese_units = ['', '十', '百', '千', '万']
+
+        res = ''
+        if num == 0:
+            return '零'
+
+        if num >= 1000:
+            res += chinese_chars[num // 1000] + chinese_units[3]
+            num %= 1000
+        if num >= 100:
+            res += chinese_chars[num // 100] + chinese_units[2]
+            num %= 100
+        if num >= 10:
+            if num // 10 != 1:
+                res += chinese_chars[num // 10] + chinese_units[1]
+            else:
+                res += chinese_units[1]
+            num %= 10
+        if num > 0:
+            res += chinese_chars[num]
+
+            # 去掉“一十”中的“一”
+        if res.startswith('一十'):
+            res = res[1:]
+        return res
+
     def cn_to_num(self, cn):
         if cn.startswith('十'):
             cn = '一' + cn
@@ -112,6 +148,17 @@ class string2laws:
             answers.append(answer)
         return answers
 
+    def outall_simple(self):
+        answers = []
+        for one in self.law_list:
+            one = one[0]
+            try:
+                answer = '《' + self.law_name + '》第' + self.num_to_chinese_str(one) + "条"
+                answers.append(answer)
+            except:
+                answer = ''
+        return answers
+
 mp = {}
 with open('../files/law_use_劳动争议.txt','r', encoding='utf-8', errors='ignore') as file:
     while True:
@@ -119,15 +166,16 @@ with open('../files/law_use_劳动争议.txt','r', encoding='utf-8', errors='ign
         if string == '':
             break
         try:
-            a = string2laws(string)
-            for line in a.outall():
+            a = string2laws(string)#string为某法第几条到第几条，如《中华人民共和国劳动争议调解仲裁法》第五条、第二十七条
+            #直接调用string2laws即可使用
+            for line in a.outall_simple():
                 if not line in mp:
                     mp[line] = 0
                 mp[line] += 1
         except:
             a = ''
 
-with open('../files/law_prob_劳动争议.txt','w', encoding = 'utf-8', errors='ignore') as f:
+with open('../files/law_prob_simple_劳动争议.txt','w', encoding = 'utf-8', errors='ignore') as f:
     for key, value in mp.items():
         f.write(key)
         f.write('\t')
