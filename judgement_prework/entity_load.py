@@ -32,34 +32,55 @@ class Judgenemt:
         return str[start_idx:end_idx]
 
     def init_special(self):
-        #将诉讼请求与事实和理由合并在一行内
-        for i in range(len(self.files)-1):
-            if self.check_keywords(self.files[i], ['诉讼请求']) and self.check_keywords(self.files[i+1], ['事实', '理由']):
-                self.files[i] = self.files[i] + self.files[i+1]
-                self.files.pop(i+1)
+        # 将诉讼请求与事实和理由合并在一行内
+        for i in range(len(self.files) - 1):
+            if self.check_keywords(self.files[i], ['诉讼请求']) and self.check_keywords(self.files[i + 1], ['事实', '理由']):
+                self.files[i] = self.files[i] + self.files[i + 1]
+                self.files.pop(i + 1)
                 break
 
-        #合并本院认为
-        for i in range(len(self.files)-1):
+        # 合并本院认为
+        for i in range(len(self.files) - 1):
             if self.check_keywords(self.files[i], ['本院认为']):
                 if self.check_keywords(self.files[i], ['依', '《', '》', '第', '条', '判决如下']):
-                    #需要进行拆分
+                    # 需要进行拆分
                     yi_id = self.files[i].rfind('依')
                     new_line = self.files[i][yi_id:]
 
                     self.files[i] = self.files[i][:yi_id]
-                    self.files.insert(i+1, new_line)
+                    self.files.insert(i + 1, new_line)
+
+                    break
+
+                if self.check_keywords(self.files[i], ['根', '《', '》', '第', '条', '判决如下']):
+                    # 需要进行拆分
+                    yi_id = self.files[i].rfind('根')
+                    new_line = self.files[i][yi_id:]
+
+                    self.files[i] = self.files[i][:yi_id]
+                    self.files.insert(i + 1, new_line)
 
                     break
 
                 while True:
-                    if self.check_keywords(self.files[i+1], ['依', '《', '》', '第', '条', '判决如下']):
+                    if self.check_keywords(self.files[i + 1], ['依', '《', '》', '第', '条', '判决如下']):
                         break
-                    self.files[i] = self.files[i] + self.files[i+1]
-                    self.files.pop(i+1)
+                    if self.check_keywords(self.files[i + 1], ['根', '《', '》', '第', '条', '判决如下']):
+                        break
+                    self.files[i] = self.files[i] + self.files[i + 1]
+                    self.files.pop(i + 1)
                 break
 
-        #一些符号的标准化
+        # 给原被告加冒号
+        for i in range(len(self.files)):
+            if self.check_keywords(self.files[i], ['一案']) or self.check_keywords(self.files[i], ['终结']):
+                break
+            if self.check_keywords(self.files[i], ['原告']) and (not self.check_keywords(self.files[i], ['原告：'])):
+                self.files[i] = self.files[i].replace('原告', '原告：')
+            if self.check_keywords(self.files[i], ['被告']) and (not self.check_keywords(self.files[i], ['被告：'])):
+                self.files[i] = self.files[i].replace('被告', '被告：')
+
+        # 一些符号的标准化
         for i in range(len(self.files)):
             self.files[i] = self.files[i].replace(':', '：')
             self.files[i] = self.files[i].replace(',', '，')
@@ -74,45 +95,55 @@ class Judgenemt:
             self.files[i] = self.files[i].replace('９', '9')
             self.files[i] = self.files[i].replace('０', '0')
 
-
-    def read_file(self, filename):
-        with open(filename, "r", encoding='utf-8') as f:
-            lines = f.readlines()
-        self.files = [line.strip() for line in lines]
+    def read_text(self, text):
+        self.files = text
         try:
             self.init_special()
         except:
             val = 0
-            #print("init warning..")
-
+            # print("init warning..")
     def __init__(self, filename):
         self.read_file(filename)
 
-    def get_info(self, keys, key1, key2 = ''):
+    def get_info(self, keys, key1, key2=''):
         answer = []
         for line in self.files:
             if self.check_keywords(line, keys):
                 answer.append(self.select_words(line, key1, key2))
         return answer
 
-    def get_plaintiff(self):
-        return self.get_info(['原告：'], '原告：', '，')
+    def get_member_fixbug(self, element):
+        # return element
+        for i in range(len(element)):
+            if element[i].find('。') != -1:
+                element[i] = element[i][:element[i].find('。')]
+            if element[i].find('，') != -1:
+                element[i] = element[i][:element[i].find('，')]
+            if element[i].find('、') != -1:
+                element[i] = element[i][:element[i].find('、')]
+        return element
 
+    def get_plaintiff(self):
+        return self.get_member_fixbug(self.get_info(['原告：'], '原告：'))
 
     def get_defendant(self):
-        return self.get_info(['被告：'], '被告：', '，')
+        return self.get_member_fixbug(self.get_info(['被告：'], '被告：'))
 
     def get_claim(self):
-        all = self.get_info(['诉讼请求', '事实', '理由'], '诉讼请求：', '事实')[0]
-        #print(all)
+        try:
+            all = self.get_info(['诉讼请求', '事实', '理由'], '诉讼请求：', '事实')[0]
+        except:
+            all = self.get_info(['诉讼请求'], '诉讼请求：')[0]
 
-        def find_id(text, num, start = 0):
+        # print(all)
+
+        def find_id(text, num, start=0):
             split_dots = [',', '，', '.', '，', '．', '、', '.']
             for split_dot in split_dots:
                 tag = str(num) + split_dot
                 pos = text.find(tag, start)
                 if pos != -1:
-                    if (not text[pos-1].isdigit()) and (not text[pos+2].isdigit()):
+                    if (not text[pos - 1].isdigit()) and (not text[pos + 2].isdigit()):
                         return pos
                     else:
                         start = pos + 2
@@ -136,7 +167,11 @@ class Judgenemt:
         return answer
 
     def get_complaint(self):
-        return self.get_info(['诉讼请求', '事实', '理由'], '理由：')[0]
+        try:
+            ret = self.get_info(['诉讼请求', '事实', '理由'], '理由：')[0]
+            return ret
+        except:
+            return ''
 
     def get_answer(self):
         return self.get_info(['辩称'], '辩称')
@@ -147,25 +182,33 @@ class Judgenemt:
         for i in range(len(self.files)):
             if self.check_keywords(self.files[i], ['依', '《', '》', '第', '条', '判决如下']):
                 for j in range(len(startkey)):
-                    if self.files[i+j+1].startswith(startkey[j]):
-                        answer.append(self.files[i+j+1])
+                    if self.files[i + j + 1].startswith(startkey[j]):
+                        answer.append(self.files[i + j + 1])
                     else:
                         break
                 if j == 0:
-                    answer.append(self.files[i+1])
+                    answer.append(self.files[i + 1])
         return answer
 
     def get_laws(self):
-        all = self.get_info(['依', '《', '》', '第', '条', '判决如下'], '依')[0]
-        #print(all)
-        #print(len(all))
+        try:
+            all = '依' + self.get_info(['依', '《', '》', '第', '条', '判决如下'], '依')[0]
+        except:
+            all = '依' + self.get_info(['根', '《', '》', '第', '条', '判决如下'], '跟')[0]
+        idr = all.rfind('判决如下')
+        all = all[:idr]
+        idr = all.rfind('依')
+        all = all[idr:]
+
+        # print(all)
+        # print(len(all))
 
         def remove_prefix(string):
             index = string.find("《")
             if index != -1:
                 string = string[index:]
                 indexR = max(string.rfind("条"), string.rfind("款"), string.rfind("项"))
-                return string[:indexR+1]
+                return string[:indexR + 1]
             return ''
 
         laws = all.split('《')
@@ -176,14 +219,20 @@ class Judgenemt:
             law = remove_prefix(law)
             if law != '':
                 answer.append(law)
-        return answer
+
+        output = []
+        for law in answer:
+            to_law = string2laws(law)
+            out = to_law.outall_simple()
+            output.extend(out)
+        return output
 
     def get_case_type(self):
-        all = self.get_info(['原告', '被告', '终结'], '被告', '一案')[0]
+        all = self.get_info(['案', '终结'], '', '案')[0]
         answer = ''
         for anyou in anyous:
             if all.find(anyou) != -1:
-                if len(answer)<len(anyou):
+                if len(answer) < len(anyou):
                     answer = anyou
         return answer
 
