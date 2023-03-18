@@ -220,12 +220,7 @@ class Judgenemt:
             if law != '':
                 answer.append(law)
 
-        output = []
-        for law in answer:
-            to_law = string2laws(law)
-            out = to_law.outall_simple()
-            output.extend(out)
-        return output
+        return answer
 
     def get_case_type(self):
         all = self.get_info(['案', '终结'], '', '案')[0]
